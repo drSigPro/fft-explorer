@@ -9,7 +9,7 @@ const POINT_OPTIONS = [32, 64, 128, 256, 512];
 
 const App: React.FC = () => {
   const [numPoints, setNumPoints] = useState(128);
-  
+
   // Initialize signal with a default state immediately
   const [signal, setSignal] = useState<number[]>(() => {
     const initialSize = 128;
@@ -27,7 +27,7 @@ const App: React.FC = () => {
     setSignal(prev => {
       if (!prev || prev.length === 0) return new Array(numPoints).fill(0);
       if (prev.length === numPoints) return prev;
-      
+
       const next = new Array(numPoints).fill(0);
       const prevLen = prev.length;
       for (let i = 0; i < numPoints; i++) {
@@ -35,10 +35,10 @@ const App: React.FC = () => {
         const indexLow = Math.floor(samplePos);
         const indexHigh = Math.ceil(samplePos);
         const weight = samplePos - indexLow;
-        
+
         const valLow = prev[indexLow] ?? 0;
         const valHigh = prev[indexHigh] ?? (prev[indexLow] ?? 0);
-        
+
         next[i] = valLow * (1 - weight) + valHigh * weight;
       }
       return next;
@@ -64,6 +64,8 @@ const App: React.FC = () => {
     setSignal(newSignal);
   }, []);
 
+  console.log('Spectrum Components:', components.length, components);
+
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-950">
       {/* Header */}
@@ -79,20 +81,20 @@ const App: React.FC = () => {
             <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Frequency Discovery Tool</p>
           </div>
         </div>
-        
+
         <nav className="flex items-center bg-slate-800/50 rounded-lg p-1 border border-slate-700/50">
-            <button 
-                onClick={() => setActiveTab('3d')}
-                className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === '3d' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:text-slate-200'}`}
-            >
-                3D EXPLORER
-            </button>
-            <button 
-                onClick={() => setActiveTab('steps')}
-                className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'steps' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:text-slate-200'}`}
-            >
-                THE PROCESS
-            </button>
+          <button
+            onClick={() => setActiveTab('3d')}
+            className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === '3d' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:text-slate-200'}`}
+          >
+            3D EXPLORER
+          </button>
+          <button
+            onClick={() => setActiveTab('steps')}
+            className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'steps' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:text-slate-200'}`}
+          >
+            THE PROCESS
+          </button>
         </nav>
       </header>
 
@@ -124,36 +126,43 @@ const App: React.FC = () => {
 
             <section>
               <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4">Input Waveform</h2>
-              <SignalInput 
-                  signal={signal}
-                  numPoints={numPoints} 
-                  onSignalUpdate={updateSignal} 
-                  currentMode={inputMode}
-                  onModeChange={setInputMode}
+              <SignalInput
+                signal={signal}
+                numPoints={numPoints}
+                onSignalUpdate={updateSignal}
+                currentMode={inputMode}
+                onModeChange={setInputMode}
               />
             </section>
 
             <section>
-               <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4">Spectrum Magnitude</h2>
-               <div className="bg-slate-950/50 rounded-2xl p-5 border border-slate-800">
-                  <div className="h-32 w-full flex items-end space-x-0.5 border-b border-slate-800 pb-1">
-                      {components.map((c, i) => (
-                          <div 
-                              key={i} 
-                              style={{ height: `${Math.max(2, Math.min(c.amplitude * 100, 100))}%` }} 
-                              className="flex-1 bg-gradient-to-t from-blue-600 via-blue-400 to-cyan-400 rounded-t-sm opacity-80 hover:opacity-100 transition-opacity group relative"
-                          >
-                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-slate-800 text-[9px] font-bold px-2 py-1 rounded-md hidden group-hover:block whitespace-nowrap z-50 border border-slate-700 shadow-xl">
-                                {c.frequency}Hz: {c.amplitude.toFixed(3)}
-                              </div>
-                          </div>
-                      ))}
+              <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4">Spectrum Magnitude</h2>
+              <div className="bg-slate-950/50 rounded-2xl p-5 border border-slate-800">
+
+                {components.length === 0 ? (
+                  <div className="h-32 w-full flex items-center justify-center text-slate-500 text-xs italic">
+                    No signal data
                   </div>
-                  <div className="flex justify-between mt-2 text-[9px] font-bold text-slate-600 uppercase tracking-tighter">
-                      <span>DC</span>
-                      <span>Nyquist ({(signal.length / 2).toFixed(0)}Hz)</span>
+                ) : (
+                  <div className="h-32 w-full flex items-end space-x-0.5 border-b border-slate-800 pb-1 overflow-x-auto custom-scrollbar">
+                    {components.map((c, i) => (
+                      <div
+                        key={i}
+                        style={{ height: `${Math.max(2, Math.min(c.amplitude * 100, 100))}%` }}
+                        className="flex-1 min-w-[3px] bg-gradient-to-t from-blue-600 via-blue-400 to-cyan-400 rounded-t-sm opacity-80 hover:opacity-100 transition-opacity group relative shrink-0"
+                      >
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-slate-800 text-[9px] font-bold px-2 py-1 rounded-md hidden group-hover:block whitespace-nowrap z-50 border border-slate-700 shadow-xl pointer-events-none">
+                          {c.frequency}Hz: {c.amplitude.toFixed(3)}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-               </div>
+                )}
+                <div className="flex justify-between mt-2 text-[9px] font-bold text-slate-600 uppercase tracking-tighter">
+                  <span>DC</span>
+                  <span>Nyquist ({(signal.length / 2).toFixed(0)}Hz)</span>
+                </div>
+              </div>
             </section>
           </div>
         </aside>
@@ -161,31 +170,31 @@ const App: React.FC = () => {
         {/* Viewport Area */}
         <section className="flex-1 bg-slate-950 relative overflow-hidden flex flex-col">
           {activeTab === '3d' ? (
-             <Visualizer3D signal={signal} components={components} />
+            <Visualizer3D signal={signal} components={components} />
           ) : (
             <div className="w-full h-full p-8 overflow-y-auto custom-scrollbar bg-slate-950">
-                <div className="max-w-3xl mx-auto space-y-16 py-12">
-                    <header className="text-center space-y-2">
-                        <h2 className="text-4xl font-black text-white tracking-tight">Understanding the Math</h2>
-                        <p className="text-slate-500 font-medium">The journey from Time to Frequency</p>
-                    </header>
+              <div className="max-w-3xl mx-auto space-y-16 py-12">
+                <header className="text-center space-y-2">
+                  <h2 className="text-4xl font-black text-white tracking-tight">Understanding the Math</h2>
+                  <p className="text-slate-500 font-medium">The journey from Time to Frequency</p>
+                </header>
 
-                    <div className="grid gap-8">
-                      {[
-                        { step: 1, title: "Correlation", color: "blue", desc: "The algorithm compares your signal to pure sine waves. A high 'match' score means that frequency exists in your sound." },
-                        { step: 2, title: "Binning", color: "cyan", desc: "Results are placed into 'bins' ordered by frequency. In 3D, these bins are arranged along the Depth (Z) axis." },
-                        { step: 3, title: "Magnitude", color: "emerald", desc: "We calculate the absolute power of each bin. This tells us the volume of each harmonic component." }
-                      ].map((s) => (
-                        <div key={s.step} className="bg-slate-900/50 p-8 rounded-3xl border border-slate-800 flex items-start space-x-8 transition-transform hover:scale-[1.01]">
-                            <div className={`w-14 h-14 rounded-2xl bg-${s.color}-600/10 text-${s.color}-500 flex items-center justify-center text-3xl font-black shrink-0 border border-${s.color}-500/20`}>{s.step}</div>
-                            <div className="space-y-2">
-                                <h3 className="text-xl font-bold text-white">{s.title}</h3>
-                                <p className="text-slate-400 leading-relaxed text-sm font-medium">{s.desc}</p>
-                            </div>
-                        </div>
-                      ))}
+                <div className="grid gap-8">
+                  {[
+                    { step: 1, title: "Correlation", color: "blue", desc: "The algorithm compares your signal to pure sine waves. A high 'match' score means that frequency exists in your sound." },
+                    { step: 2, title: "Binning", color: "cyan", desc: "Results are placed into 'bins' ordered by frequency. In 3D, these bins are arranged along the Depth (Z) axis." },
+                    { step: 3, title: "Magnitude", color: "emerald", desc: "We calculate the absolute power of each bin. This tells us the volume of each harmonic component." }
+                  ].map((s) => (
+                    <div key={s.step} className="bg-slate-900/50 p-8 rounded-3xl border border-slate-800 flex items-start space-x-8 transition-transform hover:scale-[1.01]">
+                      <div className={`w-14 h-14 rounded-2xl bg-${s.color}-600/10 text-${s.color}-500 flex items-center justify-center text-3xl font-black shrink-0 border border-${s.color}-500/20`}>{s.step}</div>
+                      <div className="space-y-2">
+                        <h3 className="text-xl font-bold text-white">{s.title}</h3>
+                        <p className="text-slate-400 leading-relaxed text-sm font-medium">{s.desc}</p>
+                      </div>
                     </div>
+                  ))}
                 </div>
+              </div>
             </div>
           )}
         </section>
