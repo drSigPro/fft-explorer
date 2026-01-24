@@ -1,0 +1,5 @@
+{
+  "name": "FFT Explorer: 3D Fourier Transform Visualizer",
+  "description": "An interactive educational tool to explore Discrete Fourier Transforms. Visualize signals in 3D, decompose them into sine waves, and switch between time and frequency domains.",
+  "requestFramePermissions": []
+}
