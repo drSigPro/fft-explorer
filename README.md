@@ -1,3 +1,5 @@
+## Developed through vibe coding in Google AI Studio
+
 ## Run Locally
 
 **Prerequisites:**  Node.js
