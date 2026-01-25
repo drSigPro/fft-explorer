@@ -1,4 +1,5 @@
 # FFT Explorer: 3D Fourier Transform Visualizer
+<img src="AppImage.png" alt="drawing" style="width:600px;"/>
 
 **FFT Explorer** is an interactive, educational tool designed to visualize the Fast Fourier Transform (FFT) in a 3D space designed with help from Google AI Studio and Antigravity. It helps students, educators, and curious minds understand how time-domain signals are decomposed into frequency components.
 
