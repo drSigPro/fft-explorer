@@ -10,40 +10,73 @@ const POINT_OPTIONS = [32, 64, 128];
 const App: React.FC = () => {
   const [numPoints, setNumPoints] = useState(128);
 
+  // Store the "master" signal to allow non-destructive downsampling/upsampling logic
+  const referenceSignal = useRef<number[]>([]);
+
   // Initialize signal with a default state immediately
   const [signal, setSignal] = useState<number[]>(() => {
-    const initialSize = 128;
-    return new Array(initialSize).fill(0).map((_, i) => {
+    const initialSize = 128; // Default to 128
+    const initial = new Array(initialSize).fill(0).map((_, i) => {
       const x = i / initialSize;
       return Math.sin(2 * Math.PI * 3 * x) + 0.5 * Math.sin(2 * Math.PI * 10 * x);
     });
+    // Set initial reference
+    referenceSignal.current = initial;
+    return initial;
   });
 
   const [inputMode, setInputMode] = useState<InputMode>(InputMode.EQUATION);
   const [activeTab, setActiveTab] = useState<'3d' | 'steps'>('3d');
 
   // Resample signal when numPoints changes to maintain the wave shape
+  // ONLY for DRAW mode. For Equation/Numbers, the SignalInput component handles regeneration.
   useEffect(() => {
-    setSignal(prev => {
-      if (!prev || prev.length === 0) return new Array(numPoints).fill(0);
-      if (prev.length === numPoints) return prev;
+    if (inputMode !== InputMode.DRAW) return;
 
-      const next = new Array(numPoints).fill(0);
-      const prevLen = prev.length;
-      for (let i = 0; i < numPoints; i++) {
-        const samplePos = (i / (numPoints - 1)) * (prevLen - 1);
+    // Use referenceSignal as source to avoid data loss from iterative resampling
+    const source = referenceSignal.current;
+    if (!source || source.length === 0) {
+      setSignal(new Array(numPoints).fill(0));
+      return;
+    }
+
+    // If source is already the right length (e.g. initial load or same size), just use it
+    if (source.length === numPoints) {
+      setSignal(source);
+      return;
+    }
+
+    // Resample from Source -> Signal
+    const next = new Array(numPoints).fill(0);
+    const srcLen = source.length;
+
+    // Choose interpolation strategy
+    // In Draw Mode, users expect "pixels" to scale up sharply (Nearest Neighbor), 
+    // preserving high-frequency edges. Linear interpolation smooths them out.
+    // We use NN for upsampling, and keep Linear for downsampling (to average out data loss somewhat).
+    const useNearest = srcLen < numPoints;
+
+    for (let i = 0; i < numPoints; i++) {
+      if (useNearest) {
+        // Nearest Neighbor
+        const samplePos = (i / numPoints) * srcLen;
+        const index = Math.min(Math.floor(samplePos), srcLen - 1);
+        next[i] = source[index] ?? 0;
+      } else {
+        // Linear Interpolation
+        const samplePos = (i / (numPoints - 1)) * (srcLen - 1);
         const indexLow = Math.floor(samplePos);
         const indexHigh = Math.ceil(samplePos);
         const weight = samplePos - indexLow;
 
-        const valLow = prev[indexLow] ?? 0;
-        const valHigh = prev[indexHigh] ?? (prev[indexLow] ?? 0);
+        const valLow = source[indexLow] ?? 0;
+        const valHigh = source[indexHigh] ?? (source[indexLow] ?? 0);
 
         next[i] = valLow * (1 - weight) + valHigh * weight;
       }
-      return next;
-    });
-  }, [numPoints]);
+    }
+    setSignal(next);
+  }, [numPoints, inputMode]);
 
   const fftResult = useMemo(() => {
     if (!signal || signal.length < 2) return [];
@@ -61,7 +94,12 @@ const App: React.FC = () => {
   }, [fftResult, signal.length]);
 
   const updateSignal = useCallback((newSignal: number[] | ((prev: number[]) => number[])) => {
-    setSignal(newSignal);
+    setSignal(prev => {
+      const next = typeof newSignal === 'function' ? newSignal(prev) : newSignal;
+      // Update reference whenever signal is manually changed by user
+      referenceSignal.current = next;
+      return next;
+    });
   }, []);
 
   console.log('Spectrum Components:', components.length, components);

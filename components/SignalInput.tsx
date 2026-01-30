@@ -13,7 +13,7 @@ interface SignalInputProps {
 const SignalInput: React.FC<SignalInputProps> = ({ signal, numPoints, onSignalUpdate, currentMode, onModeChange }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [equation, setEquation] = useState('Math.sin(2 * Math.PI * x) + 0.5 * Math.sin(6 * Math.PI * x)');
+  const [equation, setEquation] = useState('Math.sin(2 * Math.PI * 3 * x) + 0.5 * Math.sin(2 * Math.PI * 10 * x)');
   const [rawNumbers, setRawNumbers] = useState('');
 
   // Draw the signal waveform on the canvas
@@ -28,7 +28,7 @@ const SignalInput: React.FC<SignalInputProps> = ({ signal, numPoints, onSignalUp
 
     // Clear background
     ctx.clearRect(0, 0, width, height);
-    
+
     // Draw baseline
     ctx.beginPath();
     ctx.strokeStyle = '#334155';
@@ -48,7 +48,7 @@ const SignalInput: React.FC<SignalInputProps> = ({ signal, numPoints, onSignalUp
       const x = (i / (signal.length - 1)) * width;
       // Map signal -1..1 to height..0
       const y = ((-signal[i] + 1) / 2) * height;
-      
+
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
@@ -65,11 +65,11 @@ const SignalInput: React.FC<SignalInputProps> = ({ signal, numPoints, onSignalUp
   const updateSignalAtPoint = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    
+
     const rect = canvas.getBoundingClientRect();
     const xRatio = (clientX - rect.left) / rect.width;
     const yRatio = (clientY - rect.top) / rect.height;
-    
+
     const index = Math.floor(Math.min(Math.max(xRatio * numPoints, 0), numPoints - 1));
     const val = (0.5 - yRatio) * 2; // Map 0..1 to 1..-1 then scale
 
@@ -106,7 +106,17 @@ const SignalInput: React.FC<SignalInputProps> = ({ signal, numPoints, onSignalUp
 
   const handleMouseUp = () => setIsDrawing(false);
 
-  const applyEquation = () => {
+  const applyNumbers = useCallback(() => {
+    const nums = rawNumbers.split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+    if (nums.length === 0) return;
+    const final = new Array(numPoints).fill(0).map((_, i) => {
+      const idx = Math.floor((i / numPoints) * nums.length);
+      return nums[idx] || 0;
+    });
+    onSignalUpdate(final);
+  }, [rawNumbers, numPoints, onSignalUpdate]);
+
+  const applyEquation = useCallback(() => {
     try {
       const newSignal = new Array(numPoints).fill(0).map((_, i) => {
         const x = i / numPoints;
@@ -116,19 +126,21 @@ const SignalInput: React.FC<SignalInputProps> = ({ signal, numPoints, onSignalUp
       });
       onSignalUpdate(newSignal);
     } catch (e) {
-      alert('Invalid equation format. Use "x" as the variable (0 to 1).');
+      // alert('Invalid equation format. Use "x" as the variable (0 to 1).'); 
+      // Silently fail or log during auto-update to avoid annoying popups
+      console.warn("Equation error:", e);
     }
-  };
+  }, [equation, numPoints, onSignalUpdate]);
 
-  const applyNumbers = () => {
-    const nums = rawNumbers.split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
-    if (nums.length === 0) return;
-    const final = new Array(numPoints).fill(0).map((_, i) => {
-        const idx = Math.floor((i / numPoints) * nums.length);
-        return nums[idx] || 0;
-    });
-    onSignalUpdate(final);
-  };
+  // Re-calculate signal when resolution changes (if in Equation or Numbers mode)
+  useEffect(() => {
+    if (currentMode === InputMode.EQUATION) {
+      applyEquation();
+    } else if (currentMode === InputMode.NUMBERS) {
+      applyNumbers();
+    }
+    // For DRAW mode, we rely on the parent App.tsx resampling logic
+  }, [numPoints, currentMode, applyEquation, applyNumbers]);
 
   return (
     <div className="bg-slate-800 rounded-xl p-4 border border-slate-700 shadow-xl">
@@ -137,11 +149,10 @@ const SignalInput: React.FC<SignalInputProps> = ({ signal, numPoints, onSignalUp
           <button
             key={mode}
             onClick={() => onModeChange(mode)}
-            className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
-              currentMode === mode 
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
+            className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${currentMode === mode
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-            }`}
+              }`}
           >
             {mode.charAt(0) + mode.slice(1).toLowerCase()}
           </button>
@@ -152,54 +163,54 @@ const SignalInput: React.FC<SignalInputProps> = ({ signal, numPoints, onSignalUp
         {currentMode === InputMode.DRAW && (
           <div className="space-y-2">
             <div className="flex justify-between items-end mb-1">
-               <p className="text-xs text-slate-400 italic">Drag to draw waveform</p>
-               <button 
-                 onClick={() => onSignalUpdate(new Array(numPoints).fill(0))}
-                 className="text-[10px] text-slate-500 hover:text-slate-300 uppercase font-bold"
-               >
-                 Clear
-               </button>
+              <p className="text-xs text-slate-400 italic">Drag to draw waveform</p>
+              <button
+                onClick={() => onSignalUpdate(new Array(numPoints).fill(0))}
+                className="text-[10px] text-slate-500 hover:text-slate-300 uppercase font-bold"
+              >
+                Clear
+              </button>
             </div>
             <div className="relative bg-slate-900 border border-slate-700 rounded-lg overflow-hidden h-40">
-                <canvas
-                    ref={canvasRef}
-                    width={400}
-                    height={160}
-                    onMouseDown={handleMouseDown}
-                    onMouseUp={handleMouseUp}
-                    onMouseLeave={handleMouseUp}
-                    onMouseMove={handleMouseMove}
-                    onTouchStart={() => setIsDrawing(true)}
-                    onTouchEnd={handleMouseUp}
-                    onTouchMove={handleTouchMove}
-                    className="w-full h-full cursor-crosshair"
-                />
+              <canvas
+                ref={canvasRef}
+                width={400}
+                height={160}
+                onMouseDown={handleMouseDown}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                onMouseMove={handleMouseMove}
+                onTouchStart={() => setIsDrawing(true)}
+                onTouchEnd={handleMouseUp}
+                onTouchMove={handleTouchMove}
+                className="w-full h-full cursor-crosshair"
+              />
             </div>
           </div>
         )}
 
         {currentMode === InputMode.EQUATION && (
           <div className="space-y-4">
-             <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Formula (JavaScript)</label>
-                <textarea
-                    value={equation}
-                    onChange={(e) => setEquation(e.target.value)}
-                    className="w-full h-24 bg-slate-900 border border-slate-700 rounded-lg p-3 font-mono text-sm text-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Math.sin(2 * Math.PI * x)..."
-                />
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Formula (JavaScript)</label>
+              <textarea
+                value={equation}
+                onChange={(e) => setEquation(e.target.value)}
+                className="w-full h-24 bg-slate-900 border border-slate-700 rounded-lg p-3 font-mono text-sm text-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Math.sin(2 * Math.PI * x)..."
+              />
             </div>
-            <button 
-                onClick={applyEquation}
-                className="w-full py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-semibold transition-colors shadow-lg"
+            <button
+              onClick={applyEquation}
+              className="w-full py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-semibold transition-colors shadow-lg"
             >
-                Generate Signal
+              Generate Signal
             </button>
             <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => setEquation('Math.sin(2 * Math.PI * 5 * x)')} className="text-[10px] bg-slate-700 hover:bg-slate-600 p-1 rounded">5Hz Sine</button>
-                <button onClick={() => setEquation('Math.sin(2 * Math.PI * x) + Math.sin(2 * Math.PI * 10 * x) * 0.3')} className="text-[10px] bg-slate-700 hover:bg-slate-600 p-1 rounded">Sum of Sines</button>
-                <button onClick={() => setEquation('x < 0.5 ? 1 : -1')} className="text-[10px] bg-slate-700 hover:bg-slate-600 p-1 rounded">Square Wave</button>
-                <button onClick={() => setEquation('Math.random() - 0.5')} className="text-[10px] bg-slate-700 hover:bg-slate-600 p-1 rounded">White Noise</button>
+              <button onClick={() => setEquation('Math.sin(2 * Math.PI * 5 * x)')} className="text-[10px] bg-slate-700 hover:bg-slate-600 p-1 rounded">5Hz Sine</button>
+              <button onClick={() => setEquation('Math.sin(2 * Math.PI * x) + Math.sin(2 * Math.PI * 10 * x) * 0.3')} className="text-[10px] bg-slate-700 hover:bg-slate-600 p-1 rounded">Sum of Sines</button>
+              <button onClick={() => setEquation('x < 0.5 ? 1 : -1')} className="text-[10px] bg-slate-700 hover:bg-slate-600 p-1 rounded">Square Wave</button>
+              <button onClick={() => setEquation('Math.random() - 0.5')} className="text-[10px] bg-slate-700 hover:bg-slate-600 p-1 rounded">White Noise</button>
             </div>
           </div>
         )}
@@ -207,19 +218,19 @@ const SignalInput: React.FC<SignalInputProps> = ({ signal, numPoints, onSignalUp
         {currentMode === InputMode.NUMBERS && (
           <div className="space-y-4">
             <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Data Points</label>
-                <textarea
-                    value={rawNumbers}
-                    onChange={(e) => setRawNumbers(e.target.value)}
-                    className="w-full h-24 bg-slate-900 border border-slate-700 rounded-lg p-3 font-mono text-sm text-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    placeholder="0.1, 0.5, -0.3, 0.8..."
-                />
+              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Data Points</label>
+              <textarea
+                value={rawNumbers}
+                onChange={(e) => setRawNumbers(e.target.value)}
+                className="w-full h-24 bg-slate-900 border border-slate-700 rounded-lg p-3 font-mono text-sm text-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                placeholder="0.1, 0.5, -0.3, 0.8..."
+              />
             </div>
-            <button 
-                onClick={applyNumbers}
-                className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg font-semibold transition-colors shadow-lg"
+            <button
+              onClick={applyNumbers}
+              className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg font-semibold transition-colors shadow-lg"
             >
-                Load Values
+              Load Values
             </button>
           </div>
         )}
