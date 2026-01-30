@@ -5,7 +5,7 @@ import { fft, getFrequencyComponents } from './services/fft';
 import Visualizer3D from './components/Visualizer3D';
 import SignalInput from './components/SignalInput';
 
-const POINT_OPTIONS = [32, 64, 128, 256, 512];
+const POINT_OPTIONS = [32, 64, 128];
 
 const App: React.FC = () => {
   const [numPoints, setNumPoints] = useState(128);

@@ -37,20 +37,20 @@ const SafeLine = ({ points, color, lineWidth = 2, opacity = 1 }: { points: THREE
 
 const Label = ({ position, text, color, bold = false }: { position: [number, number, number], text: string, color: string, bold?: boolean }) => (
   <Html position={position} center distanceFactor={15}>
-    <div style={{ 
-        color, 
-        fontSize: bold ? '12px' : '10px', 
-        whiteSpace: 'nowrap', 
-        fontWeight: bold ? '900' : 'bold', 
-        pointerEvents: 'none', 
-        background: 'rgba(2, 6, 23, 0.9)', 
-        padding: '2px 8px', 
-        borderRadius: '4px',
-        border: `1px solid ${color}${bold ? '88' : '44'}`,
-        textTransform: 'uppercase',
-        letterSpacing: '0.05em',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-        zIndex: bold ? 10 : 1
+    <div style={{
+      color,
+      fontSize: bold ? '12px' : '10px',
+      whiteSpace: 'nowrap',
+      fontWeight: bold ? '900' : 'bold',
+      pointerEvents: 'none',
+      background: 'rgba(2, 6, 23, 0.9)',
+      padding: '2px 8px',
+      borderRadius: '4px',
+      border: `1px solid ${color}${bold ? '88' : '44'}`,
+      textTransform: 'uppercase',
+      letterSpacing: '0.05em',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+      zIndex: bold ? 10 : 1
     }}>
       {text}
     </div>
@@ -68,37 +68,46 @@ const SceneContent = ({ signal, components }: Visualizer3DProps) => {
   const mainSignalPoints = useMemo(() => {
     if (n < 2) return [];
     return signal.map((y, i) => {
-        const x = (i / (n - 1) - 0.5) * timeScale;
-        const val = (y || 0) * ampScale;
-        return new THREE.Vector3(x, val, 0);
+      const x = (i / (n - 1) - 0.5) * timeScale;
+      const val = (y || 0) * ampScale;
+      return new THREE.Vector3(x, val, 0);
     });
   }, [signal, n, timeScale, ampScale]);
 
   const componentLines = useMemo(() => {
     if (!components || components.length === 0 || n < 2) return [];
 
-    const significant = [...components]
-      .sort((a, b) => b.amplitude - a.amplitude)
-      .filter(c => c.amplitude > 0.005)
-      .slice(0, 15) // Show slightly more components for a richer view
-      .sort((a, b) => a.frequency - b.frequency);
+    // 1. Filter out noise
+    const valid = components.filter(c => c.amplitude > 0.005);
 
-    return significant.map((c) => {
+    // 2. Identify top 15 strongest frequencies for labelling only
+    const topFreqs = new Set(
+      [...valid]
+        .sort((a, b) => b.amplitude - a.amplitude)
+        .slice(0, 15)
+        .map(c => c.frequency)
+    );
+
+    // 3. Sort by frequency for proper display order along Z-axis
+    const sorted = [...valid].sort((a, b) => a.frequency - b.frequency);
+
+    return sorted.map((c) => {
       const freqRatio = Math.min(c.frequency / nyquist, 1);
       const zPos = freqRatio * maxZ;
-      
+
       const points = c.signal.map((y, i) => {
         const x = (i / (n - 1) - 0.5) * timeScale;
         const val = (y || 0) * ampScale;
         return new THREE.Vector3(x, val, zPos);
       });
 
-      return { 
-        points, 
-        color: `hsl(${(c.frequency * 137.5) % 360}, 85%, 65%)`, 
-        label: `${c.frequency}Hz`, 
-        z: zPos, 
-        amp: c.amplitude 
+      return {
+        points,
+        color: `hsl(${(c.frequency * 137.5) % 360}, 85%, 65%)`,
+        label: `${c.frequency}Hz`,
+        z: zPos,
+        amp: c.amplitude,
+        showLabel: topFreqs.has(c.frequency)
       };
     });
   }, [components, n, nyquist, timeScale, ampScale, maxZ]);
@@ -108,13 +117,13 @@ const SceneContent = ({ signal, components }: Visualizer3DProps) => {
       <ambientLight intensity={1.5} />
       <pointLight position={[10, 10, 10]} intensity={2.5} />
       <pointLight position={[-10, 5, 5]} intensity={1.5} color="#3b82f6" />
-      
+
       {/* Time Domain - Base Signal */}
       <SafeLine points={mainSignalPoints} color="#3b82f6" lineWidth={5} />
-      <Label position={[-timeScale/2 - 1.5, 0, 0]} text="INPUT SIGNAL" color="#3b82f6" bold />
+      <Label position={[-timeScale / 2 - 1.5, 0, 0]} text="INPUT SIGNAL" color="#3b82f6" bold />
 
       {/* Magnitude Wall Background (X-Z plane at top of time domain) */}
-      <mesh position={[timeScale/2 + 0.01, 2, maxZ/2]} rotation={[0, -Math.PI / 2, 0]}>
+      <mesh position={[timeScale / 2 + 0.01, 2, maxZ / 2]} rotation={[0, -Math.PI / 2, 0]}>
         <planeGeometry args={[maxZ + 2, 6]} />
         <meshStandardMaterial color="#0f172a" transparent opacity={0.4} metalness={0.8} roughness={0.2} />
       </mesh>
@@ -124,36 +133,38 @@ const SceneContent = ({ signal, components }: Visualizer3DProps) => {
         <group key={`${line.label}-${i}`}>
           {/* Subtle Sine Wave Projection */}
           <SafeLine points={line.points} color={line.color} lineWidth={1.2} opacity={0.4} />
-          
+
           {/* BOLD MAGNITUDE BAR - The spectral component */}
           {/* Main vertical stalk with glow-like thickness */}
-          <SafeLine 
+          <SafeLine
             points={[
-              new THREE.Vector3(timeScale/2, 0, line.z),
-              new THREE.Vector3(timeScale/2, line.amp * ampScale, line.z)
+              new THREE.Vector3(timeScale / 2, 0, line.z),
+              new THREE.Vector3(timeScale / 2, line.amp * ampScale, line.z)
             ]}
             color={line.color}
             lineWidth={8} // Much bolder
           />
           {/* Inner core line for sharp highlight */}
-          <SafeLine 
+          <SafeLine
             points={[
-              new THREE.Vector3(timeScale/2, 0, line.z),
-              new THREE.Vector3(timeScale/2, line.amp * ampScale, line.z)
+              new THREE.Vector3(timeScale / 2, 0, line.z),
+              new THREE.Vector3(timeScale / 2, line.amp * ampScale, line.z)
             ]}
             color="#ffffff"
             lineWidth={2}
             opacity={0.8}
           />
-          
+
           {/* Frequency Labels */}
-          <Label position={[timeScale/2 + 1.2, line.amp * ampScale + 0.3, line.z]} text={line.label} color={line.color} bold />
+          {line.showLabel && (
+            <Label position={[timeScale / 2 + 1.2, line.amp * ampScale + 0.3, line.z]} text={line.label} color={line.color} bold />
+          )}
 
           {/* Depth Guide Line (Connecting 0 to Wall) */}
-          <SafeLine 
+          <SafeLine
             points={[
-              new THREE.Vector3(-timeScale/2, 0, line.z),
-              new THREE.Vector3(timeScale/2, 0, line.z)
+              new THREE.Vector3(-timeScale / 2, 0, line.z),
+              new THREE.Vector3(timeScale / 2, 0, line.z)
             ]}
             color={line.color}
             lineWidth={0.5}
@@ -164,21 +175,21 @@ const SceneContent = ({ signal, components }: Visualizer3DProps) => {
 
       {/* Axis Information */}
       <Label position={[0, -1.5, 0]} text="TIME DOMAIN" color="#64748b" bold />
-      
-      <group position={[timeScale/2 + 4, 2.5, maxZ / 2]}>
-         <Label position={[0,0,0]} text="MAGNITUDE SPECTRUM (FREQUENCY DOMAIN)" color="#f43f5e" bold />
+
+      <group position={[timeScale / 2 + 4, 2.5, maxZ / 2]}>
+        <Label position={[0, 0, 0]} text="MAGNITUDE SPECTRUM (FREQUENCY DOMAIN)" color="#f43f5e" bold />
       </group>
 
       {/* Frequency Scale Markers */}
       {[0, 0.25, 0.5, 0.75, 1.0].map((perc) => (
-        <group key={perc} position={[timeScale/2 + 0.5, -0.4, perc * maxZ]}>
-            <SafeLine points={[new THREE.Vector3(-0.3, 0, 0), new THREE.Vector3(0.3, 0, 0)]} color="#ef4444" lineWidth={2} />
-            <Label position={[1, 0, 0]} text={`${Math.round(perc * nyquist)}Hz`} color="#94a3b8" />
+        <group key={perc} position={[timeScale / 2 + 0.5, -0.4, perc * maxZ]}>
+          <SafeLine points={[new THREE.Vector3(-0.3, 0, 0), new THREE.Vector3(0.3, 0, 0)]} color="#ef4444" lineWidth={2} />
+          <Label position={[1, 0, 0]} text={`${Math.round(perc * nyquist)}Hz`} color="#94a3b8" />
         </group>
       ))}
 
       <Grid />
-      <OrbitControls makeDefault minDistance={5} maxDistance={40} target={[0, 1, maxZ/3]} />
+      <OrbitControls makeDefault minDistance={5} maxDistance={40} target={[0, 1, maxZ / 3]} />
     </>
   );
 };
@@ -191,7 +202,7 @@ const Visualizer3D: React.FC<Visualizer3DProps> = ({ signal, components }) => {
           <SceneContent signal={signal} components={components} />
         </Canvas>
       </div>
-      
+
       <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none">
         <div className="bg-slate-900/95 backdrop-blur-md p-4 rounded-xl border border-slate-700/50 text-[10px] text-slate-300 shadow-2xl">
           <p className="font-bold text-blue-400 mb-3 uppercase tracking-wider text-xs border-b border-slate-800 pb-2">3D DFT EXPLORER</p>
